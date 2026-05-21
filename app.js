@@ -550,6 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateKPIs(json);
             updateCharts(json);
             renderTable(json.history, json.best_epoch);
+            runAIDiagnostics(json);
 
             // Verificar novas épocas para disparar Notificação
             const currentTotalEpochs = json.stats.total_epochs;
@@ -646,6 +647,156 @@ document.addEventListener('DOMContentLoaded', () => {
     btnManualRefresh.addEventListener('click', () => {
         fetchTrainingData();
     });
+
+    // ==========================================================================
+    // Motor Analítico do AI Copilot (Diagnóstico de Curvas de Deep Learning)
+    // ==========================================================================
+
+    function runAIDiagnostics(data) {
+        const history = data.history || [];
+        // O histórico vem em ordem reversa no JSON (última época primeiro)
+        // Vamos inverter a ordem para criar uma cópia ordenada cronologicamente (da época 1 até a última)
+        const chronologicalHistory = [...history].reverse();
+        const totalEpochs = chronologicalHistory.length;
+
+        const badge = document.getElementById('copilot-badge');
+        const message = document.getElementById('copilot-message');
+        const rightPanel = document.getElementById('copilot-right-panel');
+        const recList = document.getElementById('copilot-rec-list');
+
+        if (totalEpochs < 3) {
+            badge.className = 'copilot-badge badge-good';
+            badge.textContent = 'Inicializando';
+            message.textContent = 'Coletando dados iniciais do YOLO. Aguarde pelo menos 3 épocas concluídas para o primeiro diagnóstico estruturado.';
+            recList.innerHTML = '<li>Continue acompanhando o warmup de treinamento.</li>';
+            return;
+        }
+
+        const lastEntry = chronologicalHistory[totalEpochs - 1];
+        const currentEpoch = lastEntry.epoch;
+        
+        let status = 'good'; // 'good', 'warning', 'danger'
+        let statusLabel = 'Saudável ⚡';
+        let mainMsg = '';
+        let recommendations = [];
+
+        // 1. ANÁLISE DE OVERFITTING (Decorar Dados de Treino)
+        // Critério: Perda de treino caindo constantemente, mas perda de validação subindo nas últimas épocas.
+        let valLossTrendRising = false;
+        let trainLossTrendFalling = false;
+        
+        if (totalEpochs >= 8) {
+            const lastN = 6; // Analisar as últimas 6 épocas
+            const slice = chronologicalHistory.slice(-lastN);
+            
+            // Calcula diferenças nas perdas de validação (Box Loss)
+            let valUpCount = 0;
+            let trainDownCount = 0;
+            for (let i = 1; i < slice.length; i++) {
+                if (slice[i]['val/box_loss'] > slice[i-1]['val/box_loss']) valUpCount++;
+                if (slice[i]['train/box_loss'] < slice[i-1]['train/box_loss']) trainDownCount++;
+            }
+            
+            // Se a perda de validação subiu na maior parte das últimas épocas e a de treino caiu
+            if (valUpCount >= 4 && trainDownCount >= 4) {
+                valLossTrendRising = true;
+                trainLossTrendFalling = true;
+            }
+        }
+
+        // 2. ANÁLISE DE ESTAGNAÇÃO DO APRENDIZADO (Convergência Estagnada)
+        let isStagnated = false;
+        if (totalEpochs >= 15) {
+            const lastN = 10;
+            const slice = chronologicalHistory.slice(-lastN);
+            const mAPs = slice.map(row => row['metrics/mAP50(B)']);
+            const maxMAP = Math.max(...mAPs);
+            const minMAP = Math.min(...mAPs);
+            
+            // Se a flutuação do mAP50 nas últimas 10 épocas for extremamente insignificante
+            if ((maxMAP - minMAP) < 0.0015 && lastEntry['lr/pg0'] < 1e-4) {
+                isStagnated = true;
+            }
+        }
+
+        // 3. ANÁLISE DE CONGRUÊNCIA DE CLASSES (Dificuldade de Classificação)
+        let isClsLossHigh = false;
+        if (lastEntry['train/cls_loss'] > lastEntry['train/box_loss'] * 2.5) {
+            isClsLossHigh = true;
+        }
+
+        // 4. AVALIAÇÃO DE RESULTADOS EXCELENTES
+        const map50 = lastEntry['metrics/mAP50(B)'];
+        const map5095 = lastEntry['metrics/mAP50-95(B)'];
+
+        // Determinação do Diagnóstico e Recomendações
+        if (valLossTrendRising && trainLossTrendFalling) {
+            status = 'danger';
+            statusLabel = 'Overfitting ⚠️';
+            mainMsg = `Alerta crítico na Época ${currentEpoch}: Identificamos um padrão clássico de <strong>Overfitting</strong>. Enquanto a perda de treino continua diminuindo, o erro nas imagens inéditas de validação está aumentando de forma consistente nas últimas épocas.`;
+            recommendations = [
+                'Aplique <strong>Early Stopping</strong> (interrompa o treino) e baixe a Melhor Época salva.',
+                'Aumente as técnicas de <strong>Data Augmentation</strong> no Colab para diversificar o dataset.',
+                'Adicione mais imagens de cenários reais ou aumente a taxa de <strong>Dropout</strong> no modelo.',
+                'Reduza a complexidade do modelo (ex: se está usando YOLO11m, tente YOLO11s).'
+            ];
+        } else if (isStagnated) {
+            status = 'warning';
+            statusLabel = 'Convergência ⏸️';
+            mainMsg = `O modelo atingiu a **Estabilização de Aprendizado** na Época ${currentEpoch}. O ganho de precisão média (mAP50) variou menos que 0.15% nas últimas 10 épocas e a Taxa de Aprendizado (Learning Rate) já está extremamente baixa (${lastEntry['lr/pg0'].toExponential(2)}).`;
+            recommendations = [
+                'O modelo atingiu o ápice de aprendizado útil com os hiperparâmetros atuais.',
+                'Considere <strong>encerrar o treinamento</strong> para economizar tempo de GPU do Colab.',
+                'Se desejar maior precisão, tente reiniciar o treino com um <strong>dataset maior</strong> ou mude o otimizador.'
+            ];
+        } else if (isClsLossHigh) {
+            status = 'warning';
+            statusLabel = 'Dataset Ruidoso 🧐';
+            mainMsg = `Detectamos desequilíbrio na Época ${currentEpoch}: A perda de classificação (Class Loss: ${lastEntry['train/cls_loss'].toFixed(4)}) está anormalmente alta comparada à perda de caixa (Box Loss: ${lastEntry['train/box_loss'].toFixed(4)}). A rede neural localiza os objetos facilmente, mas falha em nomeá-los.`;
+            recommendations = [
+                'Verifique se existem classes muito parecidas visualmente que confundem a rede neural.',
+                'Revise as anotações do seu dataset; rótulos errados ou trocados causam este sintoma exato.',
+                'Adicione mais amostras para as classes que estão apresentando menor precisão individual.'
+            ];
+        } else if (map50 > 0.85) {
+            status = 'good';
+            statusLabel = 'Excelente ✨';
+            mainMsg = `Parabéns! O treinamento na Época ${currentEpoch} apresenta métricas excepcionais. O mAP50 alcançou a incrível marca de <strong>${(map50 * 100).toFixed(1)}%</strong> com enquadramento de caixa estável (mAP50-95: ${(map5095 * 100).toFixed(1)}%).`;
+            recommendations = [
+                'Modelo perfeitamente maduro e pronto para ser testado em ambientes de homologação.',
+                'Examine se a taxa de perdas de validação continua caindo lentamente; se sim, o modelo ainda pode melhorar.',
+                'Gere o arquivo de pesos <strong>.pt</strong> ou converta para <strong>ONNX</strong> para implantação.'
+            ];
+        } else {
+            status = 'good';
+            statusLabel = 'Saudável ⚡';
+            mainMsg = `Treinamento saudável e ativo na Época ${currentEpoch}. As curvas de perdas de treinamento e validação continuam caindo de forma harmoniosa, indicando que o modelo está absorvendo conhecimento de forma estável.`;
+            recommendations = [
+                'Nenhuma anomalia de rede detectada. O modelo está aprendendo de forma sólida.',
+                'Mantenha o treinamento ativo; a meta de épocas está sendo buscada com estabilidade.',
+                'Acompanhe o mAP50 no gráfico para observar a estabilização dos acertos.'
+            ];
+        }
+
+        // Atualiza Badge
+        badge.className = `copilot-badge badge-${status}`;
+        badge.textContent = statusLabel;
+
+        // Atualiza Mensagem Principal
+        message.innerHTML = mainMsg;
+
+        // Atualiza Painel de Recomendações e Estilos
+        rightPanel.className = `copilot-right status-${status}`;
+        recList.className = `copilot-rec-list status-${status}`;
+        
+        recList.innerHTML = recommendations.map(rec => `<li>${rec}</li>`).join('');
+    }
+
+    // ==========================================================================
+    // Controle do Modo TV (Kiosk Mode)
+    // ==========================================================================
+
+
 
     // ==========================================================================
     // Inicialização da Aplicação

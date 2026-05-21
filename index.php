@@ -51,6 +51,7 @@
                     <span>Guia de Gráficos</span>
                 </a>
 
+
                 <!-- Meta de Épocas -->
                 <div class="control-group">
                     <label for="input-target-epochs">
@@ -195,6 +196,39 @@
                 </div>
             </section>
 
+            <!-- Painel AI Copilot (Diagnóstico de Curvas em Tempo Real) -->
+            <section class="copilot-section">
+                <div class="copilot-card">
+                    <div class="copilot-container">
+                        <!-- Lado Esquerdo: Status & Diagnóstico Geral -->
+                        <div class="copilot-left">
+                            <div class="copilot-brain-wrapper">
+                                <i data-lucide="cpu" class="copilot-brain-icon"></i>
+                            </div>
+                            <div class="copilot-info">
+                                <div class="copilot-title-row">
+                                    <span class="copilot-label">AI Copilot</span>
+                                    <span id="copilot-badge" class="copilot-badge badge-good">Analisando...</span>
+                                </div>
+                                <p id="copilot-message" class="copilot-message">
+                                    Aguardando carregamento de métricas do YOLO para executar diagnóstico...
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Lado Direito: Recomendações e Sugestões do Copilot -->
+                        <div class="copilot-right status-good" id="copilot-right-panel">
+                            <span class="copilot-rec-title">
+                                <i data-lucide="sparkles" style="color: var(--accent-indigo)"></i> Recomendações de Deep Learning
+                            </span>
+                            <ul class="copilot-rec-list status-good" id="copilot-rec-list">
+                                <li>Carregando recomendações do especialista...</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Seção de Gráficos -->
             <section class="charts-section">
                 <!-- Gráfico 1: Perdas (Losses) -->
@@ -288,6 +322,7 @@
 
     <!-- Container de Toasts para Notificações -->
     <div id="toast-container" class="toast-container"></div>
+
 
     <!-- Script de Aplicação Frontend -->
     <script src="app.js"></script>
