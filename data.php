@@ -1,4 +1,8 @@
 <?php
+// Desativa exibição de avisos e erros brutos que quebram o JSON no frontend
+ini_set('display_errors', 0);
+error_reporting(0);
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
@@ -13,30 +17,52 @@ $usingCache = false;
 function fetchGoogleDriveCsv($id) {
     $url = "https://docs.google.com/uc?export=download&id=" . $id;
     
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 12);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-    
-    $data = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($httpCode !== 200 || empty($data)) {
-        return false;
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+        
+        $data = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode !== 200 || empty($data)) {
+            return false;
+        }
+        
+        return $data;
+    } else {
+        // Fallback sênior robusto usando file_get_contents caso cURL não esteja instalado (comum na Vercel)
+        $options = [
+            'http' => [
+                'method' => 'GET',
+                'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\r\n",
+                'follow_location' => 1,
+                'timeout' => 12
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false
+            ]
+        ];
+        $context = stream_context_create($options);
+        $data = @file_get_contents($url, false, $context);
+        return $data;
     }
-    
-    return $data;
 }
 
 // 1. Obter os dados do CSV
 $csvContent = fetchGoogleDriveCsv($fileId);
 
 if ($csvContent !== false && strlen(trim($csvContent)) > 100) {
-    file_put_contents($localCacheFile, $csvContent);
+    // Grava em cache local apenas se tiver permissão de escrita (evita crash em ambientes Serverless read-only como a Vercel)
+    if (is_writable(__DIR__) || (file_exists($localCacheFile) && is_writable($localCacheFile))) {
+        @file_put_contents($localCacheFile, $csvContent);
+    }
 } else {
     if (file_exists($localCacheFile)) {
         $csvContent = file_get_contents($localCacheFile);
