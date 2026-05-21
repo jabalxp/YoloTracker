@@ -1,13 +1,17 @@
 {
-  "functions": {
-    "*.php": {
-      "runtime": "vercel-php@0.6.0"
-    }
-  },
+  "version": 2,
+  "builds": [
+    { "src": "index.php", "use": "vercel-php" },
+    { "src": "data.php", "use": "vercel-php" },
+    { "src": "guia.php", "use": "vercel-php" },
+    { "src": "app.js", "use": "@vercel/static" },
+    { "src": "style.css", "use": "@vercel/static" },
+    { "src": "alaba.csv", "use": "@vercel/static" }
+  ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
+    { "src": "/", "dest": "/index.php" },
+    { "src": "/data", "dest": "/data.php" },
+    { "src": "/guia", "dest": "/guia.php" },
+    { "src": "/(.*)", "dest": "/$1" }
   ]
 }
