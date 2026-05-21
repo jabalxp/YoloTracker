@@ -57,7 +57,7 @@
                     <label for="input-target-epochs">
                         <i data-lucide="target" class="control-icon"></i> Meta Épocas
                     </label>
-                    <input type="number" id="input-target-epochs" value="150" min="1" max="1000">
+                    <input type="number" id="input-target-epochs" value="30" min="1" max="1000">
                 </div>
 
                 <!-- Auto Refresh -->

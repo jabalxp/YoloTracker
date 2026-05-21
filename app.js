@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const toastContainer = document.getElementById('toast-container');
 
     // Estado da Aplicação
-    let targetEpochs = parseInt(inputTargetEpochs.value) || 150;
+    let targetEpochs = parseInt(inputTargetEpochs.value) || 30;
     let isAutoRefreshActive = toggleRefresh.checked;
     let refreshSecondsLeft = 10;
     const REFRESH_INTERVAL_SECONDS = 10;
@@ -514,7 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     inputTargetEpochs.addEventListener('change', (e) => {
         let val = parseInt(e.target.value);
-        if (isNaN(val) || val < 1) val = 150;
+        if (isNaN(val) || val < 1) val = 30;
         targetEpochs = val;
         inputTargetEpochs.value = val;
         

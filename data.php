@@ -7,7 +7,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
 // ID do arquivo do Google Drive
-$fileId = '1iM6pzdI0GvtNTYUZlO5ZOZFzIXMCzd0a';
+$fileId = '1k6yAHbl89e6p8avpVGGI0nSseikojTri';
 $localCacheFile = __DIR__ . '/alaba.csv';
 $usingCache = false;
 
